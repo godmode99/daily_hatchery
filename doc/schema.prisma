@@ -1,0 +1,743 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum DataMode {
+  REAL
+  DEMO
+}
+
+enum DefaultRole {
+  WORKER
+  HEAD
+  OWNER
+}
+
+enum AdminRole {
+  HEAD
+  OWNER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DISABLED
+}
+
+enum KeyStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum DailyLinkStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum WorkerAccessActionType {
+  VERIFY_SUCCESS
+  VERIFY_FAIL
+  OPEN_LINK
+  EXPIRED_LINK_ACCESS
+}
+
+enum TelegramRoomType {
+  DAILY_URL
+  ENTRY_ACTIVITY
+  DAILY_SUMMARY
+  TASK_REMINDER
+  ALERT
+}
+
+enum TelegramSendStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum ExportType {
+  EXCEL
+  CSV
+  PDF
+}
+
+enum ReportType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum ExportJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum RuleType {
+  TIME_BASED
+  SENSOR_THRESHOLD
+}
+
+enum ActuatorCommandType {
+  ON
+  OFF
+}
+
+enum ActuatorCommandSource {
+  MANUAL
+  RULE
+  SYSTEM
+}
+
+enum ExecutionStatus {
+  PENDING
+  EXECUTING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum Weekday {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+  SUN
+}
+
+enum ThresholdOperator {
+  GT
+  GTE
+  LT
+  LTE
+  EQ
+}
+
+model Person {
+  id          String      @id @default(uuid())
+  displayName String
+  defaultRole DefaultRole @default(WORKER)
+  isActive    Boolean     @default(true)
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  adminAccounts AdminAccount[]
+  workerKeys    WorkerKey[]
+
+  foodEntriesCreated      FoodEntry[]      @relation("FoodEntryCreatedBy")
+  growoutEntriesCreated   GrowoutEntry[]   @relation("GrowoutEntryCreatedBy")
+  nurseryEntriesCreated   NurseryEntry[]   @relation("NurseryEntryCreatedBy")
+  waterPrepEntriesCreated WaterPrepEntry[] @relation("WaterPrepEntryCreatedBy")
+
+  @@map("people")
+}
+
+model AdminAccount {
+  id                        String         @id @default(uuid())
+  personId                  String
+  googleEmail               String         @unique
+  adminRole                 AdminRole
+  approvalStatus            ApprovalStatus @default(PENDING)
+  approvedByAdminAccountId  String?
+  approvedAt                DateTime?
+  lastLoginAt               DateTime?
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+
+  person                    Person         @relation(fields: [personId], references: [id], onDelete: Restrict)
+  approvedByAdminAccount    AdminAccount?  @relation("AdminAccountApprover", fields: [approvedByAdminAccountId], references: [id], onDelete: SetNull)
+  approvedAdminAccounts     AdminAccount[] @relation("AdminAccountApprover")
+
+  exportJobs ExportJob[]
+
+  @@index([personId])
+  @@index([approvalStatus])
+  @@map("admin_accounts")
+}
+
+model WorkerKey {
+  id                     String    @id @default(uuid())
+  personId               String
+  keyValue               String    @unique
+  keyMasked              String?
+  status                 KeyStatus @default(ACTIVE)
+  createdByAdminAccountId String?
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  person            Person             @relation(fields: [personId], references: [id], onDelete: Restrict)
+  workerAccessLogs  WorkerAccessLog[]
+  foodEntries       FoodEntry[]
+  growoutEntries    GrowoutEntry[]
+  nurseryEntries    NurseryEntry[]
+  waterPrepEntries  WaterPrepEntry[]
+
+  @@index([personId])
+  @@index([status])
+  @@map("worker_keys")
+}
+
+model DailyLink {
+  id             String          @id @default(uuid())
+  token          String          @unique
+  startsAt       DateTime
+  expiresAt      DateTime
+  status         DailyLinkStatus @default(ACTIVE)
+  telegramSentAt DateTime?
+  createdBySystem Boolean        @default(true)
+  createdAt      DateTime        @default(now())
+
+  workerAccessLogs WorkerAccessLog[]
+  foodEntries       FoodEntry[]
+  growoutEntries    GrowoutEntry[]
+  nurseryEntries    NurseryEntry[]
+  waterPrepEntries  WaterPrepEntry[]
+
+  @@index([status])
+  @@index([startsAt, expiresAt])
+  @@map("daily_links")
+}
+
+model WorkerAccessLog {
+  id         String                 @id @default(uuid())
+  dailyLinkId String
+  workerKeyId String?
+  personId   String?
+  actionType WorkerAccessActionType
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime               @default(now())
+
+  dailyLink  DailyLink @relation(fields: [dailyLinkId], references: [id], onDelete: Cascade)
+  workerKey  WorkerKey? @relation(fields: [workerKeyId], references: [id], onDelete: SetNull)
+  person     Person?    @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@index([dailyLinkId])
+  @@index([workerKeyId])
+  @@index([personId])
+  @@index([createdAt])
+  @@map("worker_access_logs")
+}
+
+model PlanktonType {
+  id        String   @id @default(uuid())
+  nameEn    String
+  nameTh    String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  foodEntries FoodEntry[]
+
+  @@index([isActive, sortOrder])
+  @@map("plankton_types")
+}
+
+model GrowoutLocation {
+  id        String   @id @default(uuid())
+  name      String
+  code      String?  @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  foodDestinationSettings FoodDestinationSetting[]
+  foodEntryDestinations   FoodEntryDestination[]
+  growoutEntries          GrowoutEntry[]
+
+  @@index([isActive, sortOrder])
+  @@map("growout_locations")
+}
+
+model WaterPrepPoint {
+  id        String   @id @default(uuid())
+  name      String
+  code      String?  @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  waterPrepEntries WaterPrepEntry[]
+
+  @@index([isActive, sortOrder])
+  @@map("water_prep_points")
+}
+
+model FoodDestinationSetting {
+  id                             String   @id @default(uuid())
+  growoutLocationId              String
+  targetConcentrationCellsPerMl  Float
+  waterVolumeLiters              Float
+  effectiveFrom                  DateTime
+  isActive                       Boolean  @default(true)
+  updatedByAdminAccountId        String?
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+
+  growoutLocation GrowoutLocation @relation(fields: [growoutLocationId], references: [id], onDelete: Restrict)
+
+  @@index([growoutLocationId])
+  @@index([isActive, effectiveFrom])
+  @@map("food_destination_settings")
+}
+
+model NurserySetting {
+  id                        String   @id @default(uuid())
+  defaultDilutionVolumeLiters Float
+  isActive                  Boolean  @default(true)
+  updatedByAdminAccountId   String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("nursery_settings")
+}
+
+model SystemSetting {
+  id                      String   @id @default(uuid())
+  settingKey              String   @unique
+  settingValue            String
+  valueType               String?
+  updatedByAdminAccountId String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model FoodEntry {
+  id                              String   @id @default(uuid())
+  dataMode                        DataMode @default(REAL)
+  dailyLinkId                     String
+  planktonTypeId                  String
+  measuredConcentrationCellsPerMl Float
+  notes                           String?
+  createdByUserId                 String?
+  createdByWorkerKeyId            String?
+  updatedByUserId                 String?
+  deletedByUserId                 String?
+  isDeleted                       Boolean  @default(false)
+  deletedAt                       DateTime?
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  dailyLink      DailyLink          @relation(fields: [dailyLinkId], references: [id], onDelete: Restrict)
+  planktonType   PlanktonType       @relation(fields: [planktonTypeId], references: [id], onDelete: Restrict)
+  createdByUser  Person?            @relation("FoodEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  workerKey      WorkerKey?         @relation(fields: [createdByWorkerKeyId], references: [id], onDelete: SetNull)
+  destinations   FoodEntryDestination[]
+
+  @@index([dataMode, createdAt])
+  @@index([dailyLinkId])
+  @@index([planktonTypeId])
+  @@index([isDeleted])
+  @@map("food_entries")
+}
+
+model FoodEntryDestination {
+  id                            String   @id @default(uuid())
+  foodEntryId                   String
+  growoutLocationId             String
+  targetConcentrationCellsPerMl Float
+  waterVolumeLiters             Float
+  requiredDosingVolumeLiters    Float
+  createdAt                     DateTime @default(now())
+
+  foodEntry        FoodEntry       @relation(fields: [foodEntryId], references: [id], onDelete: Cascade)
+  growoutLocation  GrowoutLocation @relation(fields: [growoutLocationId], references: [id], onDelete: Restrict)
+
+  @@index([foodEntryId])
+  @@index([growoutLocationId])
+  @@map("food_entry_destinations")
+}
+
+model GrowoutEntry {
+  id                   String   @id @default(uuid())
+  dataMode             DataMode @default(REAL)
+  dailyLinkId          String
+  growoutLocationId    String
+  deadCount            Int
+  ph                   Float?
+  ammonia              Float?
+  nitrite              Float?
+  alkaline             Float?
+  salinity             Float?
+  notes                String?
+  createdByUserId      String?
+  createdByWorkerKeyId String?
+  updatedByUserId      String?
+  deletedByUserId      String?
+  isDeleted            Boolean  @default(false)
+  deletedAt            DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  dailyLink       DailyLink       @relation(fields: [dailyLinkId], references: [id], onDelete: Restrict)
+  growoutLocation GrowoutLocation @relation(fields: [growoutLocationId], references: [id], onDelete: Restrict)
+  createdByUser   Person?         @relation("GrowoutEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  workerKey       WorkerKey?      @relation(fields: [createdByWorkerKeyId], references: [id], onDelete: SetNull)
+
+  @@index([dataMode, createdAt])
+  @@index([dailyLinkId])
+  @@index([growoutLocationId])
+  @@index([isDeleted])
+  @@map("growout_entries")
+}
+
+model NurseryEntry {
+  id                        String   @id @default(uuid())
+  dataMode                  DataMode @default(REAL)
+  dailyLinkId               String
+  dilutionWaterVolumeLiters Float
+  averageCount              Float
+  totalCells                Float
+  densityCellsPerMl         Float
+  ph                        Float?
+  ammonia                   Float?
+  nitrite                   Float?
+  alkaline                  Float?
+  salinity                  Float?
+  notes                     String?
+  createdByUserId           String?
+  createdByWorkerKeyId      String?
+  updatedByUserId           String?
+  deletedByUserId           String?
+  isDeleted                 Boolean  @default(false)
+  deletedAt                 DateTime?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  dailyLink     DailyLink           @relation(fields: [dailyLinkId], references: [id], onDelete: Restrict)
+  createdByUser Person?             @relation("NurseryEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  workerKey     WorkerKey?          @relation(fields: [createdByWorkerKeyId], references: [id], onDelete: SetNull)
+  counts        NurseryEntryCount[]
+
+  @@index([dataMode, createdAt])
+  @@index([dailyLinkId])
+  @@index([isDeleted])
+  @@map("nursery_entries")
+}
+
+model NurseryEntryCount {
+  id             String   @id @default(uuid())
+  nurseryEntryId String
+  rowNo          Int
+  countValue     Float
+  createdAt      DateTime @default(now())
+
+  nurseryEntry NurseryEntry @relation(fields: [nurseryEntryId], references: [id], onDelete: Cascade)
+
+  @@index([nurseryEntryId])
+  @@unique([nurseryEntryId, rowNo])
+  @@map("nursery_entry_counts")
+}
+
+model WaterPrepEntry {
+  id                   String   @id @default(uuid())
+  dataMode             DataMode @default(REAL)
+  dailyLinkId          String
+  waterPrepPointId     String
+  preparedVolumeTons   Float
+  salinity             Float?
+  ph                   Float?
+  ammonia              Float?
+  nitrite              Float?
+  alkaline             Float?
+  notes                String?
+  createdByUserId      String?
+  createdByWorkerKeyId String?
+  updatedByUserId      String?
+  deletedByUserId      String?
+  isDeleted            Boolean  @default(false)
+  deletedAt            DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  dailyLink      DailyLink      @relation(fields: [dailyLinkId], references: [id], onDelete: Restrict)
+  waterPrepPoint WaterPrepPoint @relation(fields: [waterPrepPointId], references: [id], onDelete: Restrict)
+  createdByUser  Person?        @relation("WaterPrepEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  workerKey      WorkerKey?     @relation(fields: [createdByWorkerKeyId], references: [id], onDelete: SetNull)
+
+  @@index([dataMode, createdAt])
+  @@index([dailyLinkId])
+  @@index([waterPrepPointId])
+  @@index([isDeleted])
+  @@map("water_prep_entries")
+}
+
+model ForwardTask {
+  id                  String   @id @default(uuid())
+  name                String
+  description         String?
+  startDate           DateTime
+  repeatEveryNDays    Int
+  isTelegramEnabled   Boolean  @default(false)
+  isVisibleToWorkers  Boolean  @default(false)
+  isActive            Boolean  @default(true)
+  createdByAdminAccountId String?
+  updatedByAdminAccountId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  notifications ForwardTaskNotification[]
+
+  @@index([isActive, isVisibleToWorkers, isTelegramEnabled])
+  @@map("forward_tasks")
+}
+
+model ForwardTaskNotification {
+  id                   String             @id @default(uuid())
+  forwardTaskId        String
+  targetDate           DateTime
+  telegramMessageLogId String?
+  sendStatus           TelegramSendStatus @default(PENDING)
+  sentAt               DateTime?
+  createdAt            DateTime           @default(now())
+
+  forwardTask        ForwardTask         @relation(fields: [forwardTaskId], references: [id], onDelete: Cascade)
+  telegramMessageLog TelegramMessageLog? @relation(fields: [telegramMessageLogId], references: [id], onDelete: SetNull)
+
+  @@unique([forwardTaskId, targetDate])
+  @@index([sendStatus])
+  @@map("forward_task_notifications")
+}
+
+model TelegramDestination {
+  id        String           @id @default(uuid())
+  name      String
+  roomType  TelegramRoomType
+  chatId    String
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  messageLogs TelegramMessageLog[]
+
+  @@index([roomType, isActive])
+  @@map("telegram_destinations")
+}
+
+model TelegramMessageLog {
+  id                    String             @id @default(uuid())
+  telegramDestinationId String
+  messageType           String
+  relatedTableName      String?
+  relatedRecordId       String?
+  payloadText           String
+  sendStatus            TelegramSendStatus @default(PENDING)
+  responsePayload       Json?
+  createdAt             DateTime           @default(now())
+  sentAt                DateTime?
+
+  telegramDestination    TelegramDestination      @relation(fields: [telegramDestinationId], references: [id], onDelete: Restrict)
+  taskNotifications      ForwardTaskNotification[]
+
+  @@index([telegramDestinationId])
+  @@index([sendStatus, createdAt])
+  @@map("telegram_message_logs")
+}
+
+model ExportJob {
+  id                       String          @id @default(uuid())
+  requestedByAdminAccountId String
+  exportType               ExportType
+  reportType               ReportType
+  dataModeFilter           DataMode
+  includeDeleted           Boolean         @default(false)
+  dateFrom                 DateTime
+  dateTo                   DateTime
+  filePath                 String?
+  jobStatus                ExportJobStatus @default(QUEUED)
+  createdAt                DateTime        @default(now())
+  completedAt              DateTime?
+
+  requestedByAdminAccount AdminAccount @relation(fields: [requestedByAdminAccountId], references: [id], onDelete: Restrict)
+
+  @@index([requestedByAdminAccountId])
+  @@index([jobStatus, createdAt])
+  @@map("export_jobs")
+}
+
+model Sensor {
+  id                      String   @id @default(uuid())
+  name                    String
+  code                    String   @unique
+  unit                    String
+  description             String?
+  isActive                Boolean  @default(true)
+  createdByAdminAccountId String?
+  updatedByAdminAccountId String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  readings         SensorReading[]
+  sensorConditions AutomationRuleSensorCondition[]
+
+  @@index([isActive])
+  @@map("sensors")
+}
+
+model SensorReading {
+  id             String   @id @default(uuid())
+  sensorId       String
+  readingValue   Float
+  readingTime    DateTime
+  sourceDeviceId String?
+  rawPayload     Json?
+  createdAt      DateTime @default(now())
+
+  sensor Sensor @relation(fields: [sensorId], references: [id], onDelete: Restrict)
+
+  @@index([sensorId, readingTime(sort: Desc)])
+  @@map("sensor_readings")
+}
+
+model Actuator {
+  id                      String   @id @default(uuid())
+  name                    String
+  code                    String   @unique
+  description             String?
+  isActive                Boolean  @default(true)
+  createdByAdminAccountId String?
+  updatedByAdminAccountId String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  commands    ActuatorCommand[]
+  ruleActions AutomationRuleAction[]
+
+  @@index([isActive])
+  @@map("actuators")
+}
+
+model ActuatorCommand {
+  id                    String                @id @default(uuid())
+  actuatorId            String
+  commandType           ActuatorCommandType
+  commandSource         ActuatorCommandSource
+  issuedByAdminAccountId String?
+  automationRuleId      String?
+  executedAt            DateTime?
+  executionStatus       ExecutionStatus       @default(PENDING)
+  responsePayload       Json?
+  createdAt             DateTime              @default(now())
+
+  actuator       Actuator        @relation(fields: [actuatorId], references: [id], onDelete: Restrict)
+  automationRule AutomationRule? @relation(fields: [automationRuleId], references: [id], onDelete: SetNull)
+
+  @@index([actuatorId, executedAt(sort: Desc)])
+  @@index([executionStatus])
+  @@map("actuator_commands")
+}
+
+model AutomationRule {
+  id                      String   @id @default(uuid())
+  name                    String
+  ruleType                RuleType
+  isActive                Boolean  @default(true)
+  description             String?
+  createdByAdminAccountId String?
+  updatedByAdminAccountId String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  timeConditions   AutomationRuleTimeCondition[]
+  sensorConditions AutomationRuleSensorCondition[]
+  actions          AutomationRuleAction[]
+  executionLogs    AutomationRuleExecutionLog[]
+  actuatorCommands ActuatorCommand[]
+
+  @@index([isActive, ruleType])
+  @@map("automation_rules")
+}
+
+model AutomationRuleTimeCondition {
+  id               String   @id @default(uuid())
+  automationRuleId String
+  weekday          Weekday
+  triggerTime      String
+  durationMinutes  Int?
+  createdAt        DateTime @default(now())
+
+  automationRule AutomationRule @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+
+  @@index([automationRuleId])
+  @@map("automation_rule_time_conditions")
+}
+
+model AutomationRuleSensorCondition {
+  id               String            @id @default(uuid())
+  automationRuleId String
+  sensorId         String
+  operator         ThresholdOperator
+  thresholdValue   Float
+  createdAt        DateTime          @default(now())
+
+  automationRule AutomationRule @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+  sensor         Sensor         @relation(fields: [sensorId], references: [id], onDelete: Restrict)
+
+  @@index([automationRuleId])
+  @@index([sensorId])
+  @@map("automation_rule_sensor_conditions")
+}
+
+model AutomationRuleAction {
+  id               String              @id @default(uuid())
+  automationRuleId String
+  actuatorId       String
+  commandType      ActuatorCommandType
+  createdAt        DateTime            @default(now())
+
+  automationRule AutomationRule @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+  actuator       Actuator       @relation(fields: [actuatorId], references: [id], onDelete: Restrict)
+
+  @@index([automationRuleId])
+  @@index([actuatorId])
+  @@map("automation_rule_actions")
+}
+
+model AutomationRuleExecutionLog {
+  id               String          @id @default(uuid())
+  automationRuleId String
+  matchedAt        DateTime
+  executionStatus  ExecutionStatus
+  details          String?
+  createdAt        DateTime        @default(now())
+
+  automationRule AutomationRule @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+
+  @@index([automationRuleId])
+  @@index([matchedAt])
+  @@map("automation_rule_execution_logs")
+}
+
+model SchedulerExecutionLog {
+  id             String   @id @default(uuid())
+  jobName        String
+  startedAt      DateTime
+  finishedAt     DateTime?
+  status         String
+  details        String?
+  triggerContext String?
+  createdAt      DateTime @default(now())
+
+  @@index([jobName, startedAt])
+  @@map("scheduler_execution_logs")
+}
