@@ -18,6 +18,7 @@ It adds the missing operational planning pieces:
 - Cadence: **Mon–Fri delivery**, with sprint review at end of week
 - Priority: production-safe foundations before visual polish
 - Build order follows the existing implementation plan and dependency map
+- Production gate model follows `production-readiness-execution-plan.md`
 
 ## 3. Team Role Placeholders
 
@@ -72,6 +73,29 @@ Lock project skeleton, environment model, and deployment baseline.
 
 ### Dependencies
 - None
+
+---
+
+## Sprint 0.5 — Release Engineering Baseline (New)
+
+### Goal
+Establish non-functional controls early so feature work can ship safely.
+
+### Work items
+- [ ] Define `.env.example` and secret ownership map — **OPS/BE**
+- [ ] Implement required CI checks (lint/type/unit/integration/build) — **OPS/BE**
+- [ ] Create base observability dashboards + alert routes — **OPS**
+- [ ] Write daily-link failure runbook and rollback runbook — **OPS/TL**
+- [ ] Execute first staging backup/restore drill — **OPS**
+
+### Acceptance criteria
+- CI required checks are enforced on PR merge
+- Alert channels tested and acknowledged by owners
+- Restore drill report published and approved
+- Runbooks are reviewed by TL + QA
+
+### Dependencies
+- Sprint 0 complete
 
 ---
 

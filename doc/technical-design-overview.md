@@ -537,3 +537,11 @@ The following decisions are considered locked at the overview level:
 
 **Status:** Technical Design Overview Ready  
 **Next Step:** Create Page Flow document
+
+## 21. Production Readiness Companion
+
+For execution to production, pair this overview with:
+
+- `doc/production-readiness-execution-plan.md`
+
+That companion defines CI/CD gates, observability baseline, security hardening, runbook requirements, and go/no-go controls that are intentionally outside this architecture summary.
