@@ -172,3 +172,17 @@ Weekly report should include:
 - flaky test list
 - unresolved risks
 - release readiness status
+
+## 11. Production Gate Evidence Pack (Required)
+
+Before go-live, QA + TL + OPS must publish one evidence pack with:
+
+1. CI run URL showing required suites green
+2. access-control regression report
+3. REAL/DEMO separation regression report
+4. scheduler idempotency test evidence (09:00 and 18:00 jobs)
+5. report/export parity evidence (dashboard = report = export)
+6. backup/restore drill result from staging
+7. open defect list with severities and approved exceptions
+
+If this pack is incomplete, release is automatically **No-Go**.

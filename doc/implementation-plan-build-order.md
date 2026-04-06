@@ -779,3 +779,16 @@ After this implementation plan, the next most useful engineering artifact is one
 
 **Status:** Implementation Plan Ready  
 **Next Step:** Create Next.js Folder / Module Structure Spec or ORM Model Draft
+
+## 14. Production Execution Alignment (New)
+
+To make this build order truly release-ready, execute this plan together with:
+
+- `doc/production-readiness-execution-plan.md`
+
+Mandatory alignment rules:
+
+1. Do not mark a phase complete unless its matching release-gate evidence exists.
+2. Do not schedule production cutover before required runbooks are test-executed.
+3. Do not relax REAL/DEMO and permission boundaries for delivery speed.
+4. Treat scheduler idempotency and observability as release blockers, not enhancements.
