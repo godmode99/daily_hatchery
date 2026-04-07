@@ -1,5 +1,9 @@
 import { DailyLinkStatus, KeyStatus } from "@prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
+import type { ClientMetadata } from "@/lib/http/client-metadata";
+
+const VERIFY_FAIL_WINDOW_MS = 10 * 60 * 1000;
+const VERIFY_FAIL_LIMIT_PER_IP = 8;
 
 export async function validateDailyLink(token: string) {
   const dailyLink = await getPrisma().dailyLink.findUnique({
@@ -17,7 +21,7 @@ export async function validateDailyLink(token: string) {
   return { ok: true as const, dailyLink };
 }
 
-export async function verifyWorkerKey(input: { token: string; key: string }) {
+export async function verifyWorkerKey(input: { token: string; key: string; metadata?: ClientMetadata }) {
   const prisma = getPrisma();
   const linkResult = await validateDailyLink(input.token);
 
@@ -27,11 +31,35 @@ export async function verifyWorkerKey(input: { token: string; key: string }) {
         data: {
           dailyLinkId: linkResult.dailyLink.id,
           actionType: linkResult.error === "LINK_EXPIRED" ? "EXPIRED_LINK_ACCESS" : "VERIFY_FAIL",
+          ipAddress: input.metadata?.ipAddress,
+          userAgent: input.metadata?.userAgent,
         },
       });
     }
 
     return linkResult;
+  }
+
+  const failedAttempts = await prisma.workerAccessLog.count({
+    where: {
+      dailyLinkId: linkResult.dailyLink.id,
+      actionType: "VERIFY_FAIL",
+      createdAt: { gte: new Date(Date.now() - VERIFY_FAIL_WINDOW_MS) },
+      ...(input.metadata?.ipAddress ? { ipAddress: input.metadata.ipAddress } : {}),
+    },
+  });
+
+  if (failedAttempts >= VERIFY_FAIL_LIMIT_PER_IP) {
+    await prisma.workerAccessLog.create({
+      data: {
+        dailyLinkId: linkResult.dailyLink.id,
+        actionType: "VERIFY_FAIL",
+        ipAddress: input.metadata?.ipAddress,
+        userAgent: input.metadata?.userAgent,
+      },
+    });
+
+    return { ok: false as const, error: "TOO_MANY_ATTEMPTS" as const };
   }
 
   const workerKey = await prisma.workerKey.findUnique({
@@ -46,6 +74,8 @@ export async function verifyWorkerKey(input: { token: string; key: string }) {
         workerKeyId: workerKey?.id,
         personId: workerKey?.personId,
         actionType: "VERIFY_FAIL",
+        ipAddress: input.metadata?.ipAddress,
+        userAgent: input.metadata?.userAgent,
       },
     });
 
@@ -58,6 +88,8 @@ export async function verifyWorkerKey(input: { token: string; key: string }) {
       workerKeyId: workerKey.id,
       personId: workerKey.personId,
       actionType: "VERIFY_SUCCESS",
+      ipAddress: input.metadata?.ipAddress,
+      userAgent: input.metadata?.userAgent,
     },
   });
 

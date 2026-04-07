@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { updateFoodEntryAction } from "@/app/entry/[dailyToken]/actions";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { getPrisma } from "@/lib/db/prisma";
+import { getWorkerMessages } from "@/lib/i18n/server";
 import { getVerifiedWorkerForToken } from "@/lib/worker/session";
 
 type FoodEditPageProps = {
@@ -16,6 +18,7 @@ type FoodEditPageProps = {
 export default async function FoodEditPage({ params, searchParams }: FoodEditPageProps) {
   const { dailyToken, id } = await params;
   const { error } = await searchParams;
+  const { locale, messages } = await getWorkerMessages();
   const verified = await getVerifiedWorkerForToken(dailyToken);
 
   if (!verified.ok) {
@@ -24,11 +27,7 @@ export default async function FoodEditPage({ params, searchParams }: FoodEditPag
 
   const [entry, planktonTypes, destinationSettings] = await Promise.all([
     getPrisma().foodEntry.findFirst({
-      where: {
-        id,
-        dailyLinkId: verified.dailyLink.id,
-        isDeleted: false,
-      },
+      where: { id, dailyLinkId: verified.dailyLink.id, isDeleted: false },
       include: { destinations: true },
     }),
     getPrisma().planktonType.findMany({
@@ -46,20 +45,19 @@ export default async function FoodEditPage({ params, searchParams }: FoodEditPag
     redirect(`/entry/${dailyToken}/today`);
   }
 
-  const selectedDestinationIds = new Set(
-    entry.destinations.map((destination) => destination.growoutLocationId),
-  );
+  const selectedDestinationIds = new Set(entry.destinations.map((destination) => destination.growoutLocationId));
   const latestDestinationSettings = Array.from(
     new Map(destinationSettings.map((setting) => [setting.growoutLocationId, setting])).values(),
   );
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10">
-      <p className="text-sm font-medium text-accent">Food Entry</p>
-      <h1 className="mt-2 text-3xl font-semibold">แก้ไขอาหารแพลงก์ตอน</h1>
+      <LanguageSwitcher currentLocale={locale} path={`/entry/${dailyToken}/food/${id}/edit`} />
+      <p className="mt-6 text-sm font-medium text-accent">Food Entry</p>
+      <h1 className="mt-2 text-3xl font-semibold">{messages.foodEntry}</h1>
       {error ? (
         <p className="mt-4 rounded-lg border border-danger px-3 py-2 text-sm text-danger">
-          กรุณาตรวจข้อมูลอีกครั้ง หรือยังไม่ได้ตั้งค่า destination calculation
+          {messages.checkFormAgain}
         </p>
       ) : null}
       <form action={updateFoodEntryAction} className="mt-8 space-y-5 rounded-lg border border-border bg-card p-5">
@@ -67,7 +65,7 @@ export default async function FoodEditPage({ params, searchParams }: FoodEditPag
         <input type="hidden" name="id" value={id} />
         <div>
           <label className="block text-sm font-medium" htmlFor="planktonTypeId">
-            ชนิดแพลงก์ตอน
+            {messages.planktonType}
           </label>
           <select
             id="planktonTypeId"
@@ -76,7 +74,7 @@ export default async function FoodEditPage({ params, searchParams }: FoodEditPag
             defaultValue={entry.planktonTypeId}
             required
           >
-            <option value="">เลือกชนิด</option>
+            <option value="">{messages.selectType}</option>
             {planktonTypes.map((type) => (
               <option key={type.id} value={type.id}>
                 {type.nameTh ?? type.nameEn}
@@ -86,7 +84,7 @@ export default async function FoodEditPage({ params, searchParams }: FoodEditPag
         </div>
         <div>
           <label className="block text-sm font-medium" htmlFor="measuredConcentrationCellsPerMl">
-            ความเข้มข้นที่วัดได้ (cells/ml)
+            {messages.measuredConcentration}
           </label>
           <input
             id="measuredConcentrationCellsPerMl"
@@ -99,7 +97,7 @@ export default async function FoodEditPage({ params, searchParams }: FoodEditPag
           />
         </div>
         <fieldset>
-          <legend className="text-sm font-medium">ปลายทางที่ต้องให้อาหาร</legend>
+          <legend className="text-sm font-medium">{messages.destinationToFeed}</legend>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             {latestDestinationSettings.map((setting) => (
               <label key={setting.id} className="rounded-lg border border-border p-4">
@@ -119,21 +117,27 @@ export default async function FoodEditPage({ params, searchParams }: FoodEditPag
             ))}
           </div>
         </fieldset>
-        <div>
-          <label className="block text-sm font-medium" htmlFor="notes">
-            หมายเหตุ
-          </label>
-          <textarea
-            id="notes"
-            name="notes"
-            className="mt-2 min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2"
-            defaultValue={entry.notes ?? ""}
-          />
-        </div>
+        <NotesField defaultValue={entry.notes ?? ""} label={messages.notes} />
         <button className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground" type="submit">
-          บันทึกการแก้ไขและส่ง Telegram
+          {messages.saveEditAndSend}
         </button>
       </form>
     </main>
+  );
+}
+
+function NotesField({ defaultValue, label }: { defaultValue: string; label: string }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium" htmlFor="notes">
+        {label}
+      </label>
+      <textarea
+        id="notes"
+        name="notes"
+        className="mt-2 min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2"
+        defaultValue={defaultValue}
+      />
+    </div>
   );
 }

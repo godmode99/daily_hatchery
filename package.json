@@ -12,7 +12,11 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "telegram:updates": "tsx scripts/telegram-updates.ts"
+    "telegram:updates": "tsx scripts/telegram-updates.ts",
+    "device:sensor-demo": "tsx scripts/device-sensor-demo.ts",
+    "device:actuator-demo": "tsx scripts/device-actuator-demo.ts",
+    "smoke:app": "tsx scripts/smoke-check.ts",
+    "env:check": "tsx scripts/env-check.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

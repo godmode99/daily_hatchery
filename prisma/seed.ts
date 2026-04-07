@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { AdminRole, ApprovalStatus, DefaultRole, TelegramRoomType } from "@prisma/client";
+import { AdminRole, ApprovalStatus, DataMode, DefaultRole, TelegramRoomType } from "@prisma/client";
 import { getPrisma } from "../src/lib/db/prisma";
 
 const prisma = getPrisma();
@@ -231,6 +231,209 @@ async function main() {
       },
     });
   }
+
+  await seedDemoOperationalData();
+}
+
+async function seedDemoOperationalData() {
+  const demoPerson = await prisma.person.upsert({
+    where: { id: "seed-demo-worker-person" },
+    update: {
+      displayName: "Demo Worker",
+      defaultRole: DefaultRole.WORKER,
+      isActive: true,
+    },
+    create: {
+      id: "seed-demo-worker-person",
+      displayName: "Demo Worker",
+      defaultRole: DefaultRole.WORKER,
+      isActive: true,
+    },
+  });
+
+  const demoWorkerKey = await prisma.workerKey.upsert({
+    where: { id: "seed-demo-worker-key" },
+    update: {
+      personId: demoPerson.id,
+      keyValue: "demo-1234",
+      keyMasked: "de****34",
+      status: "ACTIVE",
+    },
+    create: {
+      id: "seed-demo-worker-key",
+      personId: demoPerson.id,
+      keyValue: "demo-1234",
+      keyMasked: "de****34",
+      status: "ACTIVE",
+    },
+  });
+
+  const now = new Date();
+  const todayStart = startOfBangkokDay(now);
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  const demoDailyLink = await prisma.dailyLink.upsert({
+    where: { id: "seed-demo-daily-link" },
+    update: {
+      token: "demo-daily-link",
+      startsAt: todayStart,
+      expiresAt: tomorrowStart,
+      status: "ACTIVE",
+      createdBySystem: true,
+    },
+    create: {
+      id: "seed-demo-daily-link",
+      token: "demo-daily-link",
+      startsAt: todayStart,
+      expiresAt: tomorrowStart,
+      status: "ACTIVE",
+      createdBySystem: true,
+    },
+  });
+
+  await prisma.foodEntry.deleteMany({ where: { id: { in: ["seed-demo-food-1", "seed-demo-food-2"] } } });
+  await prisma.growoutEntry.deleteMany({ where: { id: { in: ["seed-demo-growout-1", "seed-demo-growout-2"] } } });
+  await prisma.nurseryEntry.deleteMany({ where: { id: { in: ["seed-demo-nursery-1"] } } });
+  await prisma.waterPrepEntry.deleteMany({ where: { id: { in: ["seed-demo-water-prep-1"] } } });
+
+  await prisma.foodEntry.create({
+    data: {
+      id: "seed-demo-food-1",
+      dataMode: DataMode.DEMO,
+      dailyLinkId: demoDailyLink.id,
+      planktonTypeId: "seed-plankton-isochrysis",
+      measuredConcentrationCellsPerMl: 650000,
+      createdByUserId: demoPerson.id,
+      createdByWorkerKeyId: demoWorkerKey.id,
+      createdAt: now,
+      destinations: {
+        create: [
+          {
+            growoutLocationId: "seed-growout-condo-1",
+            targetConcentrationCellsPerMl: 100000,
+            waterVolumeLiters: 1000,
+            requiredDosingVolumeLiters: 153.85,
+          },
+          {
+            growoutLocationId: "seed-growout-condo-2",
+            targetConcentrationCellsPerMl: 100000,
+            waterVolumeLiters: 1000,
+            requiredDosingVolumeLiters: 153.85,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.foodEntry.create({
+    data: {
+      id: "seed-demo-food-2",
+      dataMode: DataMode.DEMO,
+      dailyLinkId: demoDailyLink.id,
+      planktonTypeId: "seed-plankton-chaetoceros",
+      measuredConcentrationCellsPerMl: 820000,
+      createdByUserId: demoPerson.id,
+      createdByWorkerKeyId: demoWorkerKey.id,
+      createdAt: new Date(now.getTime() - 60 * 60 * 1000),
+      destinations: {
+        create: [
+          {
+            growoutLocationId: "seed-growout-upwelling",
+            targetConcentrationCellsPerMl: 100000,
+            waterVolumeLiters: 500,
+            requiredDosingVolumeLiters: 60.98,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.growoutEntry.createMany({
+    data: [
+      {
+        id: "seed-demo-growout-1",
+        dataMode: DataMode.DEMO,
+        dailyLinkId: demoDailyLink.id,
+        growoutLocationId: "seed-growout-condo-1",
+        deadCount: 14,
+        ph: 8.1,
+        ammonia: 0.05,
+        nitrite: 0.02,
+        alkaline: 135,
+        salinity: 28,
+        createdByUserId: demoPerson.id,
+        createdByWorkerKeyId: demoWorkerKey.id,
+        createdAt: new Date(now.getTime() - 45 * 60 * 1000),
+      },
+      {
+        id: "seed-demo-growout-2",
+        dataMode: DataMode.DEMO,
+        dailyLinkId: demoDailyLink.id,
+        growoutLocationId: "seed-growout-condo-2",
+        deadCount: 9,
+        ph: 8.0,
+        ammonia: 0.04,
+        nitrite: 0.01,
+        alkaline: 132,
+        salinity: 29,
+        createdByUserId: demoPerson.id,
+        createdByWorkerKeyId: demoWorkerKey.id,
+        createdAt: new Date(now.getTime() - 35 * 60 * 1000),
+      },
+    ],
+  });
+
+  await prisma.nurseryEntry.create({
+    data: {
+      id: "seed-demo-nursery-1",
+      dataMode: DataMode.DEMO,
+      dailyLinkId: demoDailyLink.id,
+      dilutionWaterVolumeLiters: 10,
+      averageCount: 126,
+      totalCells: 1260,
+      densityCellsPerMl: 126,
+      ph: 8.2,
+      ammonia: 0.03,
+      nitrite: 0.01,
+      alkaline: 140,
+      salinity: 27,
+      createdByUserId: demoPerson.id,
+      createdByWorkerKeyId: demoWorkerKey.id,
+      createdAt: new Date(now.getTime() - 25 * 60 * 1000),
+      counts: {
+        create: [
+          { rowNo: 1, countValue: 122 },
+          { rowNo: 2, countValue: 128 },
+          { rowNo: 3, countValue: 126 },
+          { rowNo: 4, countValue: 130 },
+          { rowNo: 5, countValue: 124 },
+        ],
+      },
+    },
+  });
+
+  await prisma.waterPrepEntry.create({
+    data: {
+      id: "seed-demo-water-prep-1",
+      dataMode: DataMode.DEMO,
+      dailyLinkId: demoDailyLink.id,
+      waterPrepPointId: "seed-water-prep-ready-1",
+      preparedVolumeTons: 12.5,
+      salinity: 28,
+      ph: 8.1,
+      ammonia: 0.02,
+      nitrite: 0.01,
+      alkaline: 136,
+      createdByUserId: demoPerson.id,
+      createdByWorkerKeyId: demoWorkerKey.id,
+      createdAt: new Date(now.getTime() - 20 * 60 * 1000),
+    },
+  });
+}
+
+function startOfBangkokDay(now = new Date()) {
+  const bangkok = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+
+  return new Date(Date.UTC(bangkok.getUTCFullYear(), bangkok.getUTCMonth(), bangkok.getUTCDate()) - 7 * 60 * 60 * 1000);
 }
 
 main()

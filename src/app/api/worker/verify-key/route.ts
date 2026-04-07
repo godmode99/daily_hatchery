@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getClientMetadata } from "@/lib/http/client-metadata";
 import { verifyWorkerKey } from "@/lib/worker/daily-link";
 
 const verifyWorkerKeySchema = z.object({
@@ -14,10 +15,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "VALIDATION_ERROR" }, { status: 400 });
   }
 
-  const result = await verifyWorkerKey(payload.data);
+  const result = await verifyWorkerKey({
+    ...payload.data,
+    metadata: getClientMetadata(request.headers),
+  });
 
   if (!result.ok) {
-    return NextResponse.json(result, { status: 401 });
+    return NextResponse.json(result, { status: result.error === "TOO_MANY_ATTEMPTS" ? 429 : 401 });
   }
 
   return NextResponse.json({

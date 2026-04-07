@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { TelegramRoomType } from "@prisma/client";
@@ -10,6 +11,7 @@ import {
 } from "@/lib/calculations/hatchery";
 import { formatEntryActivityMessage } from "@/lib/telegram/formatters";
 import { sendTelegramMessage } from "@/lib/telegram/client";
+import { getClientMetadata } from "@/lib/http/client-metadata";
 import { setWorkerVerificationCookie } from "@/lib/worker/session";
 import { verifyWorkerKey } from "@/lib/worker/daily-link";
 import { getVerifiedWorkerForToken } from "@/lib/worker/session";
@@ -18,7 +20,12 @@ export async function verifyWorkerKeyAction(formData: FormData) {
   const token = String(formData.get("token") ?? "");
   const key = String(formData.get("key") ?? "");
 
-  const result = await verifyWorkerKey({ token, key });
+  const requestHeaders = await headers();
+  const result = await verifyWorkerKey({
+    token,
+    key,
+    metadata: getClientMetadata(requestHeaders),
+  });
 
   if (!result.ok) {
     redirect(`/entry/${token}/verify?error=${result.error}`);

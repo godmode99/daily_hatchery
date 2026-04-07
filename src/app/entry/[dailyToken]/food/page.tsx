@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createFoodEntryAction } from "@/app/entry/[dailyToken]/actions";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { getPrisma } from "@/lib/db/prisma";
+import { getWorkerMessages } from "@/lib/i18n/server";
 import { getVerifiedWorkerForToken } from "@/lib/worker/session";
 
 type FoodPageProps = {
@@ -15,6 +17,7 @@ type FoodPageProps = {
 export default async function FoodPage({ params, searchParams }: FoodPageProps) {
   const { dailyToken } = await params;
   const { error } = await searchParams;
+  const { locale, messages } = await getWorkerMessages();
   const verified = await getVerifiedWorkerForToken(dailyToken);
 
   if (!verified.ok) {
@@ -39,18 +42,19 @@ export default async function FoodPage({ params, searchParams }: FoodPageProps) 
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10">
-      <p className="text-sm font-medium text-accent">Food Entry</p>
-      <h1 className="mt-2 text-3xl font-semibold">บันทึกอาหารแพลงก์ตอน</h1>
+      <LanguageSwitcher currentLocale={locale} path={`/entry/${dailyToken}/food`} />
+      <p className="mt-6 text-sm font-medium text-accent">Food Entry</p>
+      <h1 className="mt-2 text-3xl font-semibold">{messages.foodEntry}</h1>
       {error ? (
         <p className="mt-4 rounded-lg border border-danger px-3 py-2 text-sm text-danger">
-          กรุณาตรวจข้อมูลอีกครั้ง หรือยังไม่ได้ตั้งค่า destination calculation
+          {messages.checkFormAgain}
         </p>
       ) : null}
       <form action={createFoodEntryAction} className="mt-8 space-y-5 rounded-lg border border-border bg-card p-5">
         <input type="hidden" name="token" value={dailyToken} />
         <div>
           <label className="block text-sm font-medium" htmlFor="planktonTypeId">
-            ชนิดแพลงก์ตอน
+            {messages.planktonType}
           </label>
           <select
             id="planktonTypeId"
@@ -58,7 +62,7 @@ export default async function FoodPage({ params, searchParams }: FoodPageProps) 
             className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2"
             required
           >
-            <option value="">เลือกชนิด</option>
+            <option value="">{messages.selectType}</option>
             {planktonTypes.map((type) => (
               <option key={type.id} value={type.id}>
                 {type.nameTh ?? type.nameEn}
@@ -68,20 +72,20 @@ export default async function FoodPage({ params, searchParams }: FoodPageProps) 
         </div>
         <div>
           <label className="block text-sm font-medium" htmlFor="measuredConcentrationCellsPerMl">
-            ความเข้มข้นที่วัดได้ (cells/ml)
+            {messages.measuredConcentration}
           </label>
           <input
             id="measuredConcentrationCellsPerMl"
             name="measuredConcentrationCellsPerMl"
             className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2"
             min="1"
-            placeholder="เช่น 650000"
+            placeholder="650000"
             required
             type="number"
           />
         </div>
         <fieldset>
-          <legend className="text-sm font-medium">ปลายทางที่ต้องให้อาหาร</legend>
+          <legend className="text-sm font-medium">{messages.destinationToFeed}</legend>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             {latestDestinationSettings.map((setting) => (
               <label key={setting.id} className="rounded-lg border border-border p-4">
@@ -97,7 +101,7 @@ export default async function FoodPage({ params, searchParams }: FoodPageProps) 
         </fieldset>
         <div>
           <label className="block text-sm font-medium" htmlFor="notes">
-            หมายเหตุ
+            {messages.notes}
           </label>
           <textarea
             id="notes"
@@ -106,7 +110,7 @@ export default async function FoodPage({ params, searchParams }: FoodPageProps) 
           />
         </div>
         <button className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground" type="submit">
-          บันทึกและส่ง Telegram
+          {messages.saveAndSend}
         </button>
       </form>
     </main>
