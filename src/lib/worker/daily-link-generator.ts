@@ -5,20 +5,22 @@ import { formatDailyUrlMessage } from "@/lib/telegram/formatters";
 import { sendTelegramMessage } from "@/lib/telegram/client";
 import { getCurrentBangkokOperationalWindow } from "@/lib/time/bangkok";
 
-export async function generateDailyLink() {
+export async function generateDailyLink(options: { forceNew?: boolean } = {}) {
   const prisma = getPrisma();
   const window = getCurrentBangkokOperationalWindow();
 
-  const existing = await prisma.dailyLink.findFirst({
-    where: {
-      status: DailyLinkStatus.ACTIVE,
-      startsAt: window.startsAt,
-      expiresAt: window.expiresAt,
-    },
-  });
+  if (!options.forceNew) {
+    const existing = await prisma.dailyLink.findFirst({
+      where: {
+        status: DailyLinkStatus.ACTIVE,
+        startsAt: window.startsAt,
+        expiresAt: window.expiresAt,
+      },
+    });
 
-  if (existing) {
-    return existing;
+    if (existing) {
+      return existing;
+    }
   }
 
   const token = randomBytes(18).toString("base64url");

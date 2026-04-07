@@ -56,7 +56,7 @@ export async function createWorkerKeyAction(formData: FormData) {
 
 export async function generateDailyLinkAction() {
   await requireApprovedAdmin();
-  await generateDailyLink();
+  await generateDailyLink({ forceNew: true });
   revalidatePath("/admin");
   redirect("/admin?dailyLink=sent");
 }
